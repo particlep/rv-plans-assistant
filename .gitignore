@@ -1,0 +1,23 @@
+# --- Plan content: copyrighted by Van's Aircraft. Never commit to a public repo. ---
+plans/
+enrich/
+*.pdf
+build/
+app/public/img/
+app/public/data/
+
+# --- Personal config and secrets ---
+.env
+plans.config.json
+app/wrangler.jsonc
+app/.dev.vars
+
+# --- Generated / dependencies ---
+.venv/
+__pycache__/
+app/node_modules/
+app/dist/
+app/.wrangler/
+app/public/icons/
+app/public/manifest.webmanifest
+.DS_Store

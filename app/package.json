@@ -1,0 +1,27 @@
+{
+  "name": "rv-plans-assistant",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p . && tsc -p worker && vite build",
+    "preview": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "@panzoom/panzoom": "^4.6.2",
+    "dompurify": "^3.4.16",
+    "jose": "^6.2.12",
+    "marked": "^18.0.14",
+    "minisearch": "^7.2.0",
+    "preact": "^11.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261004.1",
+    "@preact/preset-vite": "^2.10.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "wrangler": "^4.147.0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "model": "RV-14",
+  "plansDir": "plans",
+  "enrichDir": "enrich",
+  "sectionsFile": "models/rv14.json",
+  "partsIndexSection": "04",
+  "firstBuildSection": 6,
+  "filePatterns": [
+    "(?P<section>\\d{2}[AB]?)_\\d+\\.pdf",
+    "Manual Section (?P<section>\\d+)\\.pdf",
+    { "pattern": ".*warning.*\\.pdf", "section": "00" }
+  ]
+}
