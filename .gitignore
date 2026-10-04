@@ -21,3 +21,4 @@ app/.wrangler/
 app/public/icons/
 app/public/manifest.webmanifest
 .DS_Store
+CLAUDE.local.md
