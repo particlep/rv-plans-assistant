@@ -30,6 +30,8 @@ from pydantic import BaseModel, Field
 from common import BUILD, ENRICH_DIR, IMG_DIR, MODEL, PARTS_INDEX_SECTION, RAW_DIR, ROOT, load_sections
 
 MODEL = "claude-opus-5-5"
+# Bumping this marks every existing reading as outdated; enrich.py will then ask
+# (typed 'redo') before re-reading and paying for those pages again.
 PROMPT_VERSION = 1
 EFFORT = "medium"
 
@@ -174,6 +176,29 @@ def save(pid: str, data: PageEnrichment, usage, raw_parts: set[str], parts_index
     return out
 
 
+def ask(prompt: str) -> str:
+    try:
+        return input(prompt).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return ""
+
+
+def confirm(n: int, est: float, redo: list[str], yes: bool):
+    """Paid runs need an explicit OK; overwriting existing readings needs a typed 'redo'."""
+    if redo and not sys.stdin.isatty():
+        sys.exit("Refusing to overwrite existing readings without a terminal to confirm. Run it interactively.")
+    if redo:
+        if ask(f"\nType 'redo' to re-read {len(redo)} existing page(s) (~${est:.2f} total): ") != "redo":
+            sys.exit("Cancelled - nothing was sent.")
+        return
+    if yes:
+        return
+    if not sys.stdin.isatty():
+        sys.exit("Pass --yes to run without a confirmation prompt.")
+    if ask(f"\nSend {n} page(s) to Claude for ~${est:.2f}? [y/N] ") not in ("y", "yes"):
+        sys.exit("Cancelled - nothing was sent.")
+
+
 def needs_run(pid: str, force: bool) -> bool:
     f = ENRICH_DIR / f"{pid}.json"
     if force or not f.exists():
@@ -248,6 +273,7 @@ def main():
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--batch", action="store_true", help="use the Message Batches API (50%% cheaper)")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--yes", action="store_true", help="skip the cost confirmation for new pages (never skips the 'redo' check)")
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args()
 
@@ -263,14 +289,22 @@ def main():
         sys.exit("pass --sections, --pages or --all")
     pids = [p for p in pids if not p.startswith(f"{PARTS_INDEX_SECTION}-")]  # parts index is parsed, not enriched
     pids = [p for p in pids if needs_run(p, args.force)]
+    # Pages that already have a (paid-for) reading and would be overwritten.
+    redo = [p for p in pids if (ENRICH_DIR / f"{p}.json").exists()]
 
     # Rough estimate: 5 images at ~4.8k tokens, ~3k text in, ~6k out incl. thinking.
+    # Actual Batch API cost has run at about 2/3 of this.
     est = len(pids) * ((5 * 4800 + 3000) * 4 + 6000 * 20) / 1e6
     if args.batch:
         est /= 2
     print(f"{len(pids)} pages to enrich, est. ${est:.2f}: {' '.join(pids)}")
+    if redo:
+        why = "--force" if args.force else f"saved with an older prompt version (now v{PROMPT_VERSION})"
+        print(f"\n  ! {len(redo)} of these ALREADY HAVE a reading ({why}) and would be re-read and overwritten:")
+        print(f"    {' '.join(redo)}")
     if args.dry_run or not pids:
         return
+    confirm(len(pids), est, redo, args.yes)
 
     load_env()
     # Org-level (non-workspace) keys must name a workspace on every request.

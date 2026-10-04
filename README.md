@@ -72,6 +72,8 @@ make deploy
 
 Open `https://<worker>.<subdomain>.workers.dev` on your phone, sign in, then Share → **Add to Home Screen**.
 
+Paid runs always show the page list and estimate and ask before sending anything (`YES=1 make enrich-batch` skips that for new pages). Pages that already have a reading are never re-read silently: with `--force`, or after `PROMPT_VERSION` in `enrich.py` changes, you're asked to type `redo`, and non-interactive runs refuse.
+
 Keep a private backup of `enrich/` (a private repo, a cloud drive). It's what you paid for, and it's plan content, so it can't go in a public repo.
 
 ---

@@ -2,6 +2,7 @@
 PY := .venv/bin/python
 SECTIONS ?=
 SEC_ARG := $(if $(SECTIONS),--sections $(SECTIONS),)
+YES_ARG := $(if $(YES),--yes,)
 WORKER_NAME = $(shell grep -m1 '"name"' app/wrangler.jsonc | sed -E 's/.*"name": "([^"]+)".*/\1/')
 
 .PHONY: setup placeholder parts extract enrich enrich-batch estimate data build dev deploy
@@ -22,10 +23,10 @@ estimate:         ## show which pages would be enriched and the estimated cost
 	cd pipeline && ../$(PY) enrich.py $(if $(SECTIONS),--sections $(SECTIONS),--all) --batch --dry-run
 
 enrich:           ## Claude reads the drawings now (~$0.15/page; needs .env)
-	cd pipeline && ../$(PY) enrich.py $(if $(SECTIONS),--sections $(SECTIONS),--all)
+	cd pipeline && ../$(PY) enrich.py $(if $(SECTIONS),--sections $(SECTIONS),--all) $(YES_ARG)
 
 enrich-batch:     ## same via the Batches API (~half price, usually < 1 hour)
-	cd pipeline && ../$(PY) enrich.py $(if $(SECTIONS),--sections $(SECTIONS),--all) --batch
+	cd pipeline && ../$(PY) enrich.py $(if $(SECTIONS),--sections $(SECTIONS),--all) --batch $(YES_ARG)
 
 data:             ## merge everything into app/public/data
 	cd pipeline && ../$(PY) build_data.py
