@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { getMeta, getParts, onSessionError, type Meta } from "./data";
 import { setKnown } from "./linkify";
 import { go, href, useRoute } from "./router";
-import { Icon, useWide } from "./ui";
+import { Icon, ThemeButton, useWide } from "./ui";
 import { About, DisclaimerSheet, hasAcknowledged } from "./views/About";
 import { ChatView } from "./views/Chat";
 import { Home } from "./views/Home";
@@ -79,6 +79,7 @@ export function App() {
             <span class="brand-tag">{meta?.model ?? "RV"}</span>
             <span class="brand-name">Plans</span>
           </a>
+          <ThemeButton />
           <form
             class="search"
             role="search"

@@ -93,6 +93,12 @@ mark { background: var(--hl); color: inherit; border-radius: 2px; padding: 0 1px
 .search input::placeholder { color: var(--bar-muted); }
 .search kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border: 1px solid var(--bar-line); color: var(--bar-muted); }
 .mainnav { display: flex; gap: 4px; margin-left: auto; }
+.theme-btn {
+  margin-left: auto; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  border: 1px solid var(--bar-line); background: transparent; color: var(--bar-muted); cursor: pointer;
+}
+.theme-btn:hover { color: #fff; }
+@media (min-width: 1024px) { .theme-btn { order: 10; margin-left: 0; width: 40px; height: 40px; } }
 .mainnav a { padding: 8px 14px; color: var(--bar-muted); font-weight: 500; border-bottom: 2px solid transparent; }
 .mainnav a:hover { color: #fff; }
 .mainnav a.on { color: #fff; border-bottom-color: var(--accent); }

@@ -1,6 +1,7 @@
 // Inline stroke icons and small shared UI helpers.
 import type { ComponentChildren } from "preact";
 import { useEffect, useState } from "preact/hooks";
+import { getTheme, nextTheme, setTheme, THEME_LABEL, type ThemePref } from "./theme";
 
 const S = (props: { d: ComponentChildren; size?: number; fill?: string }) => (
   <svg class="icon" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 24 24" fill={props.fill ?? "none"} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -23,7 +24,51 @@ export const Icon = {
   eye: () => <S d={<><rect x="3" y="5" width="18" height="14" /><circle cx="12" cy="12" r="3" /></>} />,
   list: () => <S d={<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />} />,
   send: () => <S d={<path d="M5 12h14M13 6l6 6-6 6" />} />,
+  sun: () => <S d={<><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>} />,
+  moon: () => <S d={<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />} />,
+  monitor: () => <S d={<><rect x="3" y="4" width="18" height="12" rx="1" /><path d="M8 20h8M12 16v4" /></>} />,
 };
+
+export function useTheme(): ThemePref {
+  const [t, setT] = useState(getTheme);
+  useEffect(() => {
+    const on = (e: Event) => setT((e as CustomEvent<ThemePref>).detail);
+    addEventListener("themechange", on);
+    return () => removeEventListener("themechange", on);
+  }, []);
+  return t;
+}
+
+/** One-tap cycle System → Light → Dark, for the top bar. */
+export function ThemeButton() {
+  const t = useTheme();
+  const I = t === "light" ? Icon.sun : t === "dark" ? Icon.moon : Icon.monitor;
+  return (
+    <button
+      type="button"
+      class="theme-btn"
+      aria-label={`Theme: ${THEME_LABEL[t]}. Switch to ${THEME_LABEL[nextTheme(t)]}`}
+      title={`Theme: ${THEME_LABEL[t]}`}
+      onClick={() => setTheme(nextTheme(t))}
+    >
+      <I />
+    </button>
+  );
+}
+
+/** Explicit three-way choice, for the About screen. */
+export function ThemeSwitch() {
+  const t = useTheme();
+  return (
+    <div class="chiprow" role="radiogroup" aria-label="Theme">
+      {(["system", "light", "dark"] as ThemePref[]).map((p) => (
+        <button type="button" role="radio" aria-checked={t === p} aria-pressed={t === p} onClick={() => setTheme(p)}>
+          {THEME_LABEL[p]}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** True at desktop widths (matches the CSS breakpoint). */
 export function useWide(): boolean {

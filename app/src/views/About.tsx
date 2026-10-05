@@ -1,4 +1,5 @@
 import type { Meta } from "../data";
+import { ThemeSwitch } from "../ui";
 
 /** The safety disclaimer, shared by the first-run sheet and the About screen. */
 export function DisclaimerText() {
@@ -76,6 +77,11 @@ export function About({ meta }: { meta: Meta }) {
     <div style="max-width: 720px; display: flex; flex-direction: column; gap: 16px">
       <h1 style="margin: 0; font-size: 24px">About & disclaimer</h1>
       <DisclaimerText />
+      <section aria-label="Appearance">
+        <h2 class="eyebrow">Appearance</h2>
+        <ThemeSwitch />
+        <p class="small muted" style="margin: 6px 0 0">System follows your device's light/dark setting. Saved on this device.</p>
+      </section>
       <p class="small muted" style="margin: 0">
         {meta.model} plans · data version {meta.version} · <a href="https://github.com/particlep/rv-plans-assistant">rv-plans-assistant</a> (MIT)
       </p>

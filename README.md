@@ -29,7 +29,7 @@ Turn your own copy of the Van's Aircraft RV construction plans into a private we
 **Desktop and phone**
 - **Desktop (≥1024px):** a three-pane workspace — section and page list · drawing with nearby-page thumbnails · steps panel — with top navigation (Plans · Parts · Ask) and `/` to jump to search.
 - **Phone:** one screen at a time with thumb-reach controls: on a page the bottom bar becomes ‹ prev · **Ask** · next ›, and the drawing gets its own full-screen button.
-- Installable as an app (Add to Home Screen), works offline for pages you've opened ("Save section for offline" grabs a whole section), light and dark themes following your device, fonts bundled so nothing loads from outside.
+- Installable as an app (Add to Home Screen), works offline for pages you've opened ("Save section for offline" grabs a whole section), light and dark themes (follows your device, or pick System / Light / Dark from the top-bar button or About screen), fonts bundled so nothing loads from outside.
 
 It runs on your own Cloudflare account, behind Cloudflare Access (email one-time-code login), using your own Anthropic API key.
 
