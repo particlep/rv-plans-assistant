@@ -1,13 +1,35 @@
 # rv-plans-assistant
 
-Turn your own copy of the Van's Aircraft RV construction plans into a private, phone-friendly web app for the shop:
+Turn your own copy of the Van's Aircraft RV construction plans into a private web app for the shop, laid out for both a desktop and a phone.
 
-- **Page viewer**: pinch/double-tap zoom, full screen, tappable part numbers on the drawing, bookmarks, works offline.
-- **Part lookup**: name, material and sub-kit from the plans' parts index, plus every page that uses the part in build order and what is done to it (drill, dimple, prime, rivet…). Standard AN/MS hardware is decoded (AN426AD3-3.5 → flush rivet, 3/32" x 7/32").
-- **Search**: part numbers and text across steps, figures, notes and reference sections.
-- **Ask**: chat with Claude, which searches your plans, reads pages and looks at the drawings, then answers with tappable page citations. Each answer shows the lookups it made and what it cost; on desktop the cited page appears alongside with the area Claude zoomed into outlined.
+## Features
 
-Desktop gets a three-pane workspace (sections · drawing · steps) with `/` to search; phones get one screen at a time with thumb-reach controls.
+**Page viewer**
+- The real drawing, pinch/scroll/double-tap to zoom, full screen, and a zoom toolbar (−, %, +, Fit).
+- **Part labels:** every part number printed on the drawing is tappable and opens that part. Arriving from a part page zooms straight to it, highlighted in yellow.
+- The page's content as Claude read it: steps in order (with figure and tool tags), figure descriptions with dimensions, notes and cautions pinned at the top, the parts on the page, and the raw text.
+- A title-block header (page · section · revision · date), prev/next, bookmarks, and "Ask about this page".
+
+**Part lookup**
+- Name, material, type, sub-kit and section from the plans' parts index; standard AN/MS hardware decoded (AN426AD3-3.5 → flush rivet, 3/32" x 7/32").
+- Every page that uses the part, in build order, with the steps and what is done to it (bend, drill, dimple, prime, rivet…) and a "you are here" marker for your current page.
+- A **Parts** index to browse or filter every named part, plus related part numbers (E-00907-1 / -L-1 / -R-1).
+
+**Search**
+- Part numbers and words across steps, figures, notes, reference sections and page summaries, with typo tolerance.
+- Matching parts as cards, then text matches grouped by page with the words highlighted.
+- Filter by section and by result type (steps, figures, notes, summaries), or hand the search to Claude with one tap.
+
+**Ask (Claude)**
+- Ask in plain English; Claude searches your plans, reads pages and looks at the drawings (zooming into a quarter of the page for small callouts) before answering.
+- Answers cite pages and part numbers as links, and anything you should verify on the printed sheet appears as an amber **Check:** box.
+- Each answer lists the lookups Claude made and its cost (e.g. "3 lookups · ~10¢"); past questions keep their cost too.
+- On desktop the cited page sits alongside the answer with the area Claude zoomed into outlined; on a phone it's a tappable card under the answer.
+
+**Desktop and phone**
+- **Desktop (≥1024px):** a three-pane workspace — section and page list · drawing with nearby-page thumbnails · steps panel — with top navigation (Plans · Parts · Ask) and `/` to jump to search.
+- **Phone:** one screen at a time with thumb-reach controls: on a page the bottom bar becomes ‹ prev · **Ask** · next ›, and the drawing gets its own full-screen button.
+- Installable as an app (Add to Home Screen), works offline for pages you've opened ("Save section for offline" grabs a whole section), light and dark themes following your device, fonts bundled so nothing loads from outside.
 
 It runs on your own Cloudflare account, behind Cloudflare Access (email one-time-code login), using your own Anthropic API key.
 
@@ -26,7 +48,7 @@ It runs on your own Cloudflare account, behind Cloudflare Access (email one-time
 |---|---|
 | Cloudflare | Workers Paid plan ($5/mo) recommended; the app uses Workers, static assets and KV |
 | Reading the drawings (one-time) | ~$0.075/page with the Batch API (~$13 for the RV-14 empennage + reference sections, 178 pages) |
-| Asking questions | ~5–10¢ for a text-only question; more when Claude looks at several drawings or the thread gets long |
+| Asking questions | ~5–15¢ per question; more when Claude looks at several drawings or a thread gets long. The app shows the cost of every answer (estimated from Claude Opus 5.5 list prices; your Anthropic Console has the exact bill) |
 
 ---
 
@@ -145,6 +167,8 @@ app/   Vite + Preact PWA (src/) and a Cloudflare Worker (worker/) serving it as 
 - **Search** uses one MiniSearch index shared by the browser and the Worker (`app/src/shared/search.ts`), so Claude searches exactly what you search. It's keyword search: part numbers match whole or in pieces, words match by prefix, with light typo tolerance.
 - **Ask** (`app/worker/chat.ts`) runs a streaming Claude tool-use loop with five tools: `search_plans`, `lookup_part`, `get_page`, `view_page` (whole page or a quadrant at ~2x) and `list_section`. Conversations are stored in Workers KV in your account; drawings are stored as references and re-attached per request.
 - **What leaves Cloudflare:** each chat round sends your question, the conversation and whatever the tools returned (text and drawing images) to the Anthropic API. Nothing else goes anywhere.
+- **Cost tracking:** the Worker adds up the token usage the API returns for each round of a question and prices it at Claude Opus 5.5 list rates (`PRICE` in `app/worker/chat.ts`); it is stored with the conversation in KV.
+- **Layout:** one set of components; `useWide()` (`app/src/ui.tsx`) switches between the desktop workspace and the phone layout at 1024px, matching the CSS breakpoint in `app/src/styles.css`.
 - **Offline:** a service worker caches the app, data and every page image you've viewed. "Save section for offline" pre-caches a whole section.
 
 ```
