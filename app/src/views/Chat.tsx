@@ -1,47 +1,61 @@
+import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { fetchJSON } from "../data";
+import { fetchJSON, type Meta } from "../data";
 import { markdownToHtml } from "../linkify";
 import { href } from "../router";
+import { fmtCost, Icon, useWide } from "../ui";
 
-interface Turn { role: "user" | "assistant"; text: string; tools: string[]; error?: string }
-interface ConvSummary { id: string; title: string; updated: number }
+interface Tool { name: string; label: string; input: any }
+interface Turn { role: "user" | "assistant"; text: string; tools: Tool[]; cost?: { usd: number; lookups: number }; error?: string }
+interface ConvSummary { id: string; title: string; updated: number; cost?: number }
 
-export function ChatList({ page, q }: { page?: string; q?: string }) {
-  const [convs, setConvs] = useState<ConvSummary[] | null>(null);
-  useEffect(() => {
-    fetchJSON<ConvSummary[]>("/api/conversations").then(setConvs).catch(() => setConvs([]));
-  }, []);
-  return (
-    <div>
-      <Chat page={page} initial={q} />
-      {convs && convs.length > 0 && (
-        <>
-          <h2>Past questions</h2>
-          <div class="list">
-            {convs.map((c) => (
-              <a href={href.ask(c.id)}>
-                <span class="grow">
-                  <div class="title" style="font-weight:500">{c.title}</div>
-                  <div class="sub">{new Date(c.updated).toLocaleString()}</div>
-                </span>
-                <span class="chev">›</span>
-              </a>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
+const TOOL_ICON: Record<string, () => ComponentChildren> = {
+  search_plans: Icon.search,
+  lookup_part: Icon.parts,
+  get_page: Icon.doc,
+  view_page: Icon.eye,
+  list_section: Icon.list,
+};
+// Quadrant crops overlap by 6%, so each covers 56% of the page.
+const REGION_BOX: Record<string, string> = {
+  "top-left": "left:0;top:0;width:56%;height:56%",
+  "top-right": "left:44%;top:0;width:56%;height:56%",
+  "bottom-left": "left:0;top:44%;width:56%;height:56%",
+  "bottom-right": "left:44%;top:44%;width:56%;height:56%",
+};
+const PAGE_RE = /\b(\d{2}[AB]?-\d{2})\b/g;
+
+function citedPages(t: Turn, meta: Meta): string[] {
+  const ids = new Set<string>();
+  for (const tool of t.tools) if (tool.name === "view_page" || tool.name === "get_page") ids.add(tool.input?.page_id);
+  for (const m of t.text.matchAll(PAGE_RE)) ids.add(m[1]);
+  return [...ids].filter((id) => id && meta.pages.some((p) => p.id === id));
 }
 
-export function Chat({ id, page, initial }: { id?: string; page?: string; initial?: string }) {
+function when(ts: number): string {
+  const d = new Date(ts);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) return "Today";
+  const y = new Date(today.getTime() - 864e5);
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+export function ChatView({ meta, id, page, initial }: { meta: Meta; id?: string; page?: string; initial?: string }) {
+  const wide = useWide();
   const [convId, setConvId] = useState<string | undefined>(id);
+  const [convs, setConvs] = useState<ConvSummary[] | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [title, setTitle] = useState("");
   const [input, setInput] = useState(initial ?? "");
   const [busy, setBusy] = useState(false);
-  const [title, setTitle] = useState<string>("");
   const bottom = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
 
+  const loadConvs = () => fetchJSON<ConvSummary[]>("/api/conversations").then(setConvs).catch(() => setConvs([]));
+  useEffect(() => {
+    loadConvs();
+  }, []);
   useEffect(() => {
     if (!id) return;
     fetchJSON<{ title: string; turns: Turn[] }>(`/api/conversations/${id}`)
@@ -51,9 +65,8 @@ export function Chat({ id, page, initial }: { id?: string; page?: string; initia
       })
       .catch((e) => setTurns([{ role: "assistant", text: "", tools: [], error: e.message }]));
   }, [id]);
-
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: "end" });
+    if (turns.length) bottom.current?.scrollIntoView({ block: "end" });
   }, [turns]);
 
   const update = (fn: (t: Turn) => void) =>
@@ -70,6 +83,7 @@ export function Chat({ id, page, initial }: { id?: string; page?: string; initia
     const message = input.trim();
     if (!message || busy) return;
     setInput("");
+    if (box.current) box.current.style.height = "";
     setBusy(true);
     setTurns((ts) => [...ts, { role: "user", text: message, tools: [] }, { role: "assistant", text: "", tools: [] }]);
     try {
@@ -79,7 +93,9 @@ export function Chat({ id, page, initial }: { id?: string; page?: string; initia
         body: JSON.stringify({ conversationId: convId, message, page }),
       });
       if (!res.ok || !res.headers.get("content-type")?.includes("event-stream")) {
-        const msg = res.headers.get("content-type")?.includes("json") ? (await res.json()).error : `Request failed (${res.status}). Your login may have expired - reload.`;
+        const msg = res.headers.get("content-type")?.includes("json")
+          ? (await res.json()).error
+          : `Request failed (${res.status}). Your login may have expired - reload.`;
         throw new Error(msg);
       }
       const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
@@ -99,7 +115,8 @@ export function Chat({ id, page, initial }: { id?: string; page?: string; initia
             setTitle(data.title);
             history.replaceState(null, "", href.ask(data.conversationId));
           } else if (event === "text") update((t) => (t.text += data.t));
-          else if (event === "tool") update((t) => t.tools.push(data.label));
+          else if (event === "tool") update((t) => t.tools.push({ name: data.name, label: data.label, input: data.input }));
+          else if (event === "usage") update((t) => (t.cost = data));
           else if (event === "error") update((t) => (t.error = data.message));
         }
       }
@@ -107,47 +124,87 @@ export function Chat({ id, page, initial }: { id?: string; page?: string; initia
       update((t) => (t.error = (err as Error).message));
     } finally {
       setBusy(false);
+      loadConvs();
     }
   }
 
-  return (
-    <div>
-      {title ? <h1 style="font-size:1.05rem">{title}</h1> : <h1>Ask the plans</h1>}
-      {turns.length === 0 && (
-        <p class="muted small">
-          Ask anything about the loaded sections, e.g. “How do I make the trim tab hinge?”, “Where is E-00907-L-1 used?”, “What edge distance for the
-          rudder skin rivets?” Answers cite pages you can tap.
-        </p>
+  const lastAnswer = [...turns].reverse().find((t) => t.role === "assistant" && (t.text || t.tools.length));
+  const inConversation = !!convId || turns.length > 0;
+
+  const thread = (
+    <div class="thread">
+      {!inConversation && (
+        <div>
+          <h1 style="margin: 0 0 8px; font-size: 22px">Ask the plans</h1>
+          <p class="muted" style="margin: 0">
+            Ask about any loaded section — “How do I make the trim tab hinge?”, “Where is E-00907-L-1 used?”, “What do I prime in section 06?”.
+            Answers cite pages you can tap.
+          </p>
+        </div>
       )}
-      <div class="chat">
-        {turns.map((t, i) =>
-          t.role === "user" ? (
-            <div class="msg user">{t.text}</div>
-          ) : (
-            <div class="msg assistant">
-              {t.tools.length > 0 && (
-                <div class="tools">
-                  {t.tools.map((x) => <div>{x}</div>)}
-                </div>
-              )}
-              {t.text ? (
-                <div dangerouslySetInnerHTML={{ __html: markdownToHtml(t.text) }} />
-              ) : (
-                busy && i === turns.length - 1 && !t.error && <span class="muted typing">Thinking </span>
-              )}
-              {t.error && <div class="note"><b>Error:</b> {t.error}</div>}
-            </div>
-          ),
-        )}
-      </div>
-      <div class="chat-pad" ref={bottom} />
-      <div class="composer">
-        {page && <div class="ctx">Context: page {page}</div>}
-        <form onSubmit={send}>
+      {turns.map((t, i) =>
+        t.role === "user" ? (
+          <div class="msg-user">{t.text}</div>
+        ) : (
+          <>
+            {t.tools.length > 0 && (
+              <div class="trace">
+                {t.tools.map((tool) => (
+                  <div>{(TOOL_ICON[tool.name] ?? Icon.search)()}{tool.label}</div>
+                ))}
+              </div>
+            )}
+            {(t.text || t.error || (busy && i === turns.length - 1)) && (
+              <article class="answer">
+                {t.text ? <div dangerouslySetInnerHTML={{ __html: markdownToHtml(t.text) }} /> : !t.error && <span class="muted typing">Working </span>}
+                {t.error && <div class="err">{t.error}</div>}
+                {!wide && t.text && <CiteCard meta={meta} turn={t} />}
+                {t.text && (t.cost || !busy || i < turns.length - 1) && (
+                  <div class="foot">
+                    <span>
+                      {t.cost ? `${t.cost.lookups} lookup${t.cost.lookups === 1 ? "" : "s"}` : `${t.tools.length} lookup${t.tools.length === 1 ? "" : "s"}`}
+                      {t.cost && fmtCost(t.cost.usd) ? ` · ${fmtCost(t.cost.usd)}` : ""}
+                    </span>
+                    <span>Plans are the authority</span>
+                  </div>
+                )}
+              </article>
+            )}
+          </>
+        ),
+      )}
+      {!wide && !inConversation && convs && convs.length > 0 && (
+        <section aria-label="Past questions" style="margin-top: 8px">
+          <h2 class="eyebrow">Past questions</h2>
+          <div class="list">
+            {convs.map((c) => (
+              <a href={href.ask(c.id)}>
+                <span class="grow">
+                  <div>{c.title}</div>
+                  <div class="sub">{when(c.updated)}{fmtCost(c.cost) ? ` · ${fmtCost(c.cost)}` : ""}</div>
+                </span>
+                <span class="muted"><Icon.right /></span>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+      <div ref={bottom} />
+    </div>
+  );
+
+  const composer = (
+    <div class="composer" style={!wide && !id ? "bottom: calc(57px + var(--safe-b)); padding-bottom: 10px" : ""}>
+      <form onSubmit={send}>
+        {page && <span class="ctx">Context: page {page}</span>}
+        <div class="row">
+          <label class="sr-only" for="ask-input">{inConversation ? "Ask a follow-up" : "Ask a question"}</label>
           <textarea
+            id="ask-input"
+            ref={box}
             rows={1}
             value={input}
-            placeholder={busy ? "Answering…" : "Ask about the plans…"}
+            placeholder={busy ? "Answering…" : inConversation ? "Ask a follow-up…" : "Ask about the plans…"}
             onInput={(e) => {
               const el = e.target as HTMLTextAreaElement;
               setInput(el.value);
@@ -155,12 +212,110 @@ export function Chat({ id, page, initial }: { id?: string; page?: string; initia
               el.style.height = `${el.scrollHeight}px`;
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !("ontouchstart" in window)) send(e);
+              if (e.key === "Enter" && !e.shiftKey && wide) send(e);
             }}
           />
-          <button class="btn primary" disabled={busy || !input.trim()}>Send</button>
-        </form>
-      </div>
+          <button type="submit" class="send" aria-label="Send" disabled={busy || !input.trim()}><Icon.send /></button>
+        </div>
+      </form>
     </div>
+  );
+
+  if (wide) {
+    return (
+      <div class="chatlayout">
+        <aside class="convs" aria-label="Conversations">
+          <a class="btn outline" href={href.ask()} style="margin-bottom: 12px"><Icon.plus />New question</a>
+          <div class="eyebrow" style="padding: 4px 8px 0">Recent</div>
+          {convs?.length === 0 && <p class="small muted" style="padding: 0 8px">No questions yet.</p>}
+          {convs?.map((c) => (
+            <a class={`conv${c.id === convId ? " on" : ""}`} href={href.ask(c.id)} aria-current={c.id === convId ? "page" : undefined}>
+              {c.title}
+              <div class="meta">{when(c.updated)}{fmtCost(c.cost) ? ` · ${fmtCost(c.cost)}` : ""}</div>
+            </a>
+          ))}
+        </aside>
+        <div class="chatcol">
+          {thread}
+          {composer}
+        </div>
+        <CitedPanel meta={meta} turn={lastAnswer} />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {id && (
+        <header class="appbar">
+          <a href={href.ask()} aria-label="All questions"><Icon.left /></a>
+          <span class="title">{title || "Question"}</span>
+          <a href={href.ask()} aria-label="New question"><Icon.plus /></a>
+        </header>
+      )}
+      {thread}
+      {composer}
+      {!id && <div style="height: calc(57px + var(--safe-b))" />}
+    </>
+  );
+}
+
+function CiteCard({ meta, turn }: { meta: Meta; turn: Turn }) {
+  const [first] = citedPages(turn, meta);
+  if (!first) return null;
+  const pm = meta.pages.find((p) => p.id === first)!;
+  return (
+    <a class="citecard" href={href.page(first)}>
+      <img class="thumb" src={`/img/thumb/${first}.webp`} alt="" loading="lazy" />
+      <span style="flex: 1; min-width: 0">
+        <span class="mono" style="font-weight: 600; display: block">{first}</span>
+        <span class="small muted" style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{pm.title}</span>
+      </span>
+      <Icon.right />
+    </a>
+  );
+}
+
+function CitedPanel({ meta, turn }: { meta: Meta; turn?: Turn }) {
+  const ids = turn ? citedPages(turn, meta) : [];
+  const view = turn ? [...turn.tools].reverse().find((t) => t.name === "view_page") : undefined;
+  const main = view?.input?.page_id && ids.includes(view.input.page_id) ? view.input.page_id : ids[0];
+  if (!main) {
+    return (
+      <aside class="cited" aria-label="Cited page">
+        <div class="eyebrow">Cited page</div>
+        <p class="small muted" style="margin: 0">Pages Claude reads or looks at show up here.</p>
+      </aside>
+    );
+  }
+  const pm = meta.pages.find((p) => p.id === main)!;
+  const region = view?.input?.page_id === main ? REGION_BOX[view?.input?.region] : undefined;
+  return (
+    <aside class="cited" aria-label="Cited page">
+      <div class="eyebrow">Cited page</div>
+      <div class="row" style="align-items: baseline; gap: 10px">
+        <span class="mono" style="font-size: 20px; font-weight: 600">{main}</span>
+        <span class="small muted">{[pm.rev && `Rev ${pm.rev}`, pm.date].filter(Boolean).join(" · ")}</span>
+      </div>
+      <a class="frame" href={href.page(main)} aria-label={`Open page ${main}`}>
+        <img class="thumb" src={`/img/thumb/${main}.webp`} alt="" />
+        {region && <span class="region" style={region} />}
+      </a>
+      {region && <div class="small muted">Outlined: the part of the drawing Claude looked at.</div>}
+      <div style="font-size: 14px; font-weight: 500">{pm.title}</div>
+      <a class="btn outline" href={href.page(main)}>Open page {main}</a>
+      {ids.length > 1 && (
+        <>
+          <div class="eyebrow" style="margin-top: 8px">Also cited</div>
+          {ids
+            .filter((x) => x !== main)
+            .map((x) => (
+              <a class="mono" style="font-size: 14px" href={href.page(x)}>
+                {x} · {meta.pages.find((p) => p.id === x)?.title.slice(0, 40)}
+              </a>
+            ))}
+        </>
+      )}
+    </aside>
   );
 }

@@ -7,6 +7,8 @@ import { runTool, TOOL_LABELS, TOOLS, type ImageRef } from "./tools";
 
 const MODEL = "claude-opus-5-5";
 const MAX_ROUNDS = 14;
+// Claude Opus 5.5 list prices, USD per million tokens (cache writes at the 5-minute rate).
+const PRICE = { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 };
 
 type MessageParam = Anthropic.Beta.BetaMessageParam;
 
@@ -16,9 +18,22 @@ export interface Conversation {
   created: number;
   updated: number;
   messages: any[]; // BetaMessageParam with image_ref placeholders
+  costs?: TurnCost[]; // one per question asked, in order
 }
 
-interface ConvSummary { id: string; title: string; updated: number }
+export interface TurnCost { usd: number; lookups: number }
+interface ConvSummary { id: string; title: string; updated: number; cost?: number }
+export interface DisplayTool { name: string; label: string; input: any }
+
+function usageCost(u: Anthropic.Beta.BetaUsage): number {
+  return (
+    (u.input_tokens * PRICE.input +
+      u.output_tokens * PRICE.output +
+      (u.cache_creation_input_tokens ?? 0) * PRICE.cacheWrite +
+      (u.cache_read_input_tokens ?? 0) * PRICE.cacheRead) /
+    1e6
+  );
+}
 
 export async function systemPrompt(env: Env): Promise<string> {
   const { meta } = await loadData(env);
@@ -36,6 +51,7 @@ Answer style:
 - Lead with the answer. Keep it short and scannable on a phone: brief paragraphs or a short numbered list.
 - Cite pages in square brackets like [09-04] (step/figure numbers too, e.g. [09-04] Step 3) - the app turns these into links. Write part numbers exactly as printed (e.g. E-00907-L-1); the app links those too.
 - Include dimensions, drill sizes and rivet callouts exactly as the plans give them, with the units shown.
+- When something must be checked on the printed sheet before cutting or drilling (an ambiguous callout, an inference), put it on its own line as a markdown blockquote starting with "Check:" - the app shows it as a warning box.
 
 Loaded plans sections (code, title, first…last page):
 ${sections}`;
@@ -83,13 +99,14 @@ async function saveConversation(env: Env, conv: Conversation) {
   conv.updated = Date.now();
   await env.CHATS.put(`conv:${conv.id}`, JSON.stringify(conv));
   const list = (await listConversations(env)).filter((c) => c.id !== conv.id);
-  list.unshift({ id: conv.id, title: conv.title, updated: conv.updated });
+  const cost = (conv.costs ?? []).reduce((a, c) => a + c.usd, 0);
+  list.unshift({ id: conv.id, title: conv.title, updated: conv.updated, cost });
   await env.CHATS.put("convlist", JSON.stringify(list.slice(0, 200)));
 }
 
 /** Turn stored API messages into display turns for the UI. */
 export function displayTurns(conv: Conversation) {
-  const turns: { role: "user" | "assistant"; text: string; tools: string[] }[] = [];
+  const turns: { role: "user" | "assistant"; text: string; tools: DisplayTool[]; cost?: TurnCost }[] = [];
   for (const m of conv.messages) {
     if (m.role === "user") {
       const text = typeof m.content === "string" ? m.content : m.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
@@ -100,9 +117,11 @@ export function displayTurns(conv: Conversation) {
     if (!last || last.role !== "assistant") turns.push((last = { role: "assistant", text: "", tools: [] }));
     for (const b of m.content) {
       if (b.type === "text") last.text += b.text;
-      if (b.type === "tool_use") last.tools.push(TOOL_LABELS[b.name]?.(b.input) ?? b.name);
+      if (b.type === "tool_use") last.tools.push({ name: b.name, label: TOOL_LABELS[b.name]?.(b.input) ?? b.name, input: b.input });
     }
   }
+  let k = 0;
+  for (const t of turns) if (t.role === "assistant") t.cost = conv.costs?.[k++];
   return turns;
 }
 
@@ -135,6 +154,12 @@ export function chatStream(env: Env, ctx: ExecutionContext, body: { conversation
       defaultHeaders: env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": env.ANTHROPIC_WORKSPACE_ID } : undefined,
     });
     const system = await systemPrompt(env);
+    const turnCost: TurnCost = { usd: 0, lookups: 0 };
+    conv.costs ??= [];
+    // Questions asked before cost tracking existed have no entry; pad so indexes line up.
+    const asked = conv.messages.filter((m) => m.role === "user" && Array.isArray(m.content) && m.content.some((b: any) => b.type === "text")).length;
+    while (conv.costs.length < asked - 1) conv.costs.push({ usd: 0, lookups: 0 });
+    conv.costs.push(turnCost);
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const stream = client.beta.messages.stream({
@@ -151,6 +176,7 @@ export function chatStream(env: Env, ctx: ExecutionContext, body: { conversation
       });
       stream.on("text", (delta) => void send("text", { t: delta }));
       const msg = await stream.finalMessage();
+      turnCost.usd += usageCost(msg.usage);
       // Append the assistant turn unchanged (thinking blocks must be passed back as-is).
       conv.messages.push({ role: "assistant", content: msg.content });
 
@@ -166,6 +192,7 @@ export function chatStream(env: Env, ctx: ExecutionContext, body: { conversation
         break;
       }
 
+      turnCost.lookups += toolUses.length;
       const results = await Promise.all(
         toolUses.map(async (tu) => {
           await send("tool", { label: TOOL_LABELS[tu.name]?.(tu.input) ?? tu.name, name: tu.name, input: tu.input });
@@ -185,6 +212,7 @@ export function chatStream(env: Env, ctx: ExecutionContext, body: { conversation
       await saveConversation(env, conv);
     }
     await saveConversation(env, conv);
+    await send("usage", turnCost);
     await send("done", { conversationId: conv.id });
   })()
     .catch(async (e) => {

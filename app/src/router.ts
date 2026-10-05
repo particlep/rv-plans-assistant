@@ -28,6 +28,12 @@ export const href = {
   section: (code: string) => `#/s/${code}`,
   page: (id: string, hl?: string) => `#/p/${id}${hl ? `?hl=${encodeURIComponent(hl)}` : ""}`,
   part: (pn: string) => `#/part/${encodeURIComponent(pn)}`,
-  search: (q: string) => `#/search?q=${encodeURIComponent(q)}`,
-  ask: (id?: string, page?: string) => `#/ask${id ? `/${id}` : ""}${page ? `?page=${page}` : ""}`,
+  parts: () => "#/parts",
+  search: (q: string) => `#/search${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+  ask: (id?: string, opts: { page?: string; q?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.page) qs.set("page", opts.page);
+    if (opts.q) qs.set("q", opts.q);
+    return `#/ask${id ? `/${id}` : ""}${qs.toString() ? `?${qs}` : ""}`;
+  },
 };

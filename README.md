@@ -5,7 +5,9 @@ Turn your own copy of the Van's Aircraft RV construction plans into a private, p
 - **Page viewer**: pinch/double-tap zoom, full screen, tappable part numbers on the drawing, bookmarks, works offline.
 - **Part lookup**: name, material and sub-kit from the plans' parts index, plus every page that uses the part in build order and what is done to it (drill, dimple, prime, rivet…). Standard AN/MS hardware is decoded (AN426AD3-3.5 → flush rivet, 3/32" x 7/32").
 - **Search**: part numbers and text across steps, figures, notes and reference sections.
-- **Ask**: chat with Claude, which searches your plans, reads pages and looks at the drawings, then answers with tappable page citations.
+- **Ask**: chat with Claude, which searches your plans, reads pages and looks at the drawings, then answers with tappable page citations. Each answer shows the lookups it made and what it cost; on desktop the cited page appears alongside with the area Claude zoomed into outlined.
+
+Desktop gets a three-pane workspace (sections · drawing · steps) with `/` to search; phones get one screen at a time with thumb-reach controls.
 
 It runs on your own Cloudflare account, behind Cloudflare Access (email one-time-code login), using your own Anthropic API key.
 
