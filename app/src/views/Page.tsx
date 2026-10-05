@@ -69,6 +69,11 @@ export function PageView({ meta, id, hl }: { meta: Meta; id: string; hl?: string
   );
   const content = page && (
     <>
+      {page.enriched && (
+        <p class="disclaimer">
+          Steps and figure notes were transcribed by AI and may contain errors — the drawing above is the authority. <a href={href.about()}>Disclaimer</a>
+        </p>
+      )}
       <div class="tabs" role="tablist" aria-label="Page content">
         {(["steps", "figures", "notes", "parts", "text"] as Tab[]).map((t) => (
           <button type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>

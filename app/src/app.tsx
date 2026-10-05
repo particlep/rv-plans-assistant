@@ -3,6 +3,7 @@ import { getMeta, getParts, onSessionError, type Meta } from "./data";
 import { setKnown } from "./linkify";
 import { go, href, useRoute } from "./router";
 import { Icon, useWide } from "./ui";
+import { About, DisclaimerSheet, hasAcknowledged } from "./views/About";
 import { ChatView } from "./views/Chat";
 import { Home } from "./views/Home";
 import { PageView } from "./views/Page";
@@ -17,6 +18,7 @@ export function App() {
   const [sessionErr, setSessionErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const [acked, setAcked] = useState(hasAcknowledged);
 
   useEffect(() => onSessionError((e) => setSessionErr(e.message)), []);
   useEffect(() => {
@@ -62,6 +64,7 @@ export function App() {
   else if (top === "p") view = <PageView meta={meta} id={arg} hl={route.query.get("hl") ?? undefined} />;
   else if (top === "part") view = <PartView meta={meta} pn={arg} />;
   else if (top === "parts") view = <PartsIndex meta={meta} />;
+  else if (top === "about") view = <About meta={meta} />;
   else if (top === "search") view = <SearchView meta={meta} q={route.query.get("q") ?? ""} />;
   else if (top === "ask") view = <ChatView meta={meta} id={arg} page={route.query.get("page") ?? undefined} initial={route.query.get("q") ?? undefined} />;
   else view = <Home meta={meta} />;
@@ -119,6 +122,7 @@ export function App() {
       <main class={`content${bare ? " bare" : ""}`} key={route.n}>
         {view}
       </main>
+      {!acked && <DisclaimerSheet onAccept={() => setAcked(true)} />}
       {!wide && !hideTabs && (
         <nav class="tabbar" aria-label="Main">
           <a href={href.home()} class={!top || top === "s" ? "on" : ""}><Icon.plans />Plans</a>

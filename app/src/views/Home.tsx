@@ -86,7 +86,9 @@ export function Home({ meta }: { meta: Meta }) {
           </section>
         </div>
       </div>
-      <p class="small muted" style="margin: 0">Data version {meta.version}</p>
+      <p class="small muted" style="margin: 0">
+        <a href={href.about()}>About &amp; disclaimer</a> · AI-assisted reading aid — always verify against your plans · data version {meta.version}
+      </p>
     </div>
   );
 }

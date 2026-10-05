@@ -29,6 +29,7 @@ export const href = {
   page: (id: string, hl?: string) => `#/p/${id}${hl ? `?hl=${encodeURIComponent(hl)}` : ""}`,
   part: (pn: string) => `#/part/${encodeURIComponent(pn)}`,
   parts: () => "#/parts",
+  about: () => "#/about",
   search: (q: string) => `#/search${q ? `?q=${encodeURIComponent(q)}` : ""}`,
   ask: (id?: string, opts: { page?: string; q?: string } = {}) => {
     const qs = new URLSearchParams();

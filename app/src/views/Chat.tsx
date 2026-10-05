@@ -136,6 +136,10 @@ export function ChatView({ meta, id, page, initial }: { meta: Meta; id?: string;
       {!inConversation && (
         <div>
           <h1 style="margin: 0 0 8px; font-size: 22px">Ask the plans</h1>
+          <p class="disclaimer" style="margin: 0 0 10px">
+            Answers come from AI and can be wrong. Check them against the page in your plans, and ask an experienced builder or EAA Technical
+            Counselor when in doubt. <a href={href.about()}>Disclaimer</a>
+          </p>
           <p class="muted" style="margin: 0">
             Ask about any loaded section — “How do I make the trim tab hinge?”, “Where is E-00907-L-1 used?”, “What do I prime in section 06?”.
             Answers cite pages you can tap.
@@ -165,7 +169,7 @@ export function ChatView({ meta, id, page, initial }: { meta: Meta; id?: string;
                       {t.cost ? `${t.cost.lookups} lookup${t.cost.lookups === 1 ? "" : "s"}` : `${t.tools.length} lookup${t.tools.length === 1 ? "" : "s"}`}
                       {t.cost && fmtCost(t.cost.usd) ? ` · ${fmtCost(t.cost.usd)}` : ""}
                     </span>
-                    <span>Plans are the authority</span>
+                    <span>AI can be wrong — check the plans</span>
                   </div>
                 )}
               </article>
@@ -196,7 +200,7 @@ export function ChatView({ meta, id, page, initial }: { meta: Meta; id?: string;
   const composer = (
     <div class="composer" style={!wide && !id ? "bottom: calc(57px + var(--safe-b)); padding-bottom: 10px" : ""}>
       <form onSubmit={send}>
-        {page && <span class="ctx">Context: page {page}</span>}
+        <span class="ctx">{page ? `Context: page ${page} · ` : ""}AI can make mistakes — verify against the plans.</span>
         <div class="row">
           <label class="sr-only" for="ask-input">{inConversation ? "Ask a follow-up" : "Ask a question"}</label>
           <textarea

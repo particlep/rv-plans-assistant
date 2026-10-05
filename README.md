@@ -36,9 +36,23 @@ It runs on your own Cloudflare account, behind Cloudflare Access (email one-time
 > **Important**
 > - **Not affiliated with or endorsed by Van's Aircraft.** You must own the plans you process.
 > - **This repository contains no plan content.** The pipeline processes *your* PDFs into *your* private deployment. Plan PDFs, page images and Claude's transcriptions (`plans/`, `enrich/`, `build/`, `app/public/img|data`) are git-ignored. Don't commit them to a public fork, and keep your site behind Access.
-> - **The plans are the authority.** The assistant can misread a drawing; it cites pages so you can check. Follow Van's current revisions and service bulletins.
+> - **Use at your own risk. AI makes mistakes.** Always check against the plans and get input from experienced builders. See [Safety and disclaimer](#safety-and-disclaimer).
 
 **Tested with:** RV-14/14A plans (vector PDFs, Van's standard page layout). Other models with similar PDFs should work with a config change; see [Other models](#other-models).
+
+---
+
+## Safety and disclaimer
+
+This is an unofficial reading aid, not a source of truth. **You use it entirely at your own risk.**
+
+- **AI makes mistakes.** Claude can misread a drawing, mix up left and right or fore and aft, get a dimension, drill size, rivet callout or part number wrong, skip or merge steps, or state something the plans don't say. The step text, figure descriptions and part roles in the app were transcribed by AI and can contain the same errors. Answers in Ask can sound confident and still be wrong.
+- **The plans are the authority.** Before you cut, drill, dimple, prime or rivet, check the actual page and drawing in your plans — the app links to it for exactly that reason. Use Van's current plans, revisions, service bulletins and notifications; they supersede anything here.
+- **Ask people who know.** When something is unclear, structural, or you are unsure, check with Van's builder support, an EAA Technical Counselor (through EAA / your local chapter), and experienced builders of your model (Van's Air Force forums, your local EAA chapter). Don't let an app's answer replace that.
+- **You are responsible for your aircraft.** As the builder of an amateur-built aircraft you are responsible for its construction, inspection and airworthiness. Nothing here is engineering, inspection or airworthiness advice.
+- **No warranty.** The software is provided "as is", without warranty of any kind (see [LICENSE](LICENSE)); the authors and contributors accept no liability for errors, omissions, damage, injury or loss arising from its use. Not affiliated with or endorsed by Van's Aircraft, Inc. or Anthropic.
+
+The app shows this disclaimer on first use and keeps it one tap away (Plans → About & disclaimer).
 
 ---
 
