@@ -21,7 +21,7 @@ export interface Conversation {
   costs?: TurnCost[]; // one per question asked, in order
 }
 
-export interface TurnCost { usd: number; lookups: number }
+export interface TurnCost { usd: number; lookups: number; stopped?: boolean }
 interface ConvSummary { id: string; title: string; updated: number; cost?: number }
 export interface DisplayTool { name: string; label: string; input: any }
 
@@ -128,16 +128,30 @@ export function displayTurns(conv: Conversation) {
 export function chatStream(env: Env, ctx: ExecutionContext, body: { conversationId?: string; message: string; page?: string }): Response {
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
+  writer.closed.catch(() => {}); // rejects when the client disconnects; handled via disconnected()
   const enc = new TextEncoder();
   let open = true;
-  const send = async (event: string, data: unknown) => {
+  // Pressing Stop (or closing the app) disconnects the stream. The next write fails,
+  // and we cancel the Claude call so the rest of the answer isn't paid for.
+  let stopped = false;
+  let current: { abort(): void } | null = null;
+  const disconnected = () => {
+    if (!open) return;
+    open = false;
+    stopped = true;
+    current?.abort();
+  };
+  const write = async (chunk: string) => {
     if (!open) return;
     try {
-      await writer.write(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      await writer.write(enc.encode(chunk));
     } catch {
-      open = false; // client went away; keep working so the answer is saved
+      disconnected();
     }
   };
+  const send = (event: string, data: unknown) => write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  // Heartbeat so a disconnect is noticed within seconds even while Claude is thinking silently.
+  const heartbeat = setInterval(() => void write(": ping\n\n"), 4000);
 
   const work = (async () => {
     let conv: Conversation | null = body.conversationId ? await getConversation(env, body.conversationId) : null;
@@ -161,7 +175,7 @@ export function chatStream(env: Env, ctx: ExecutionContext, body: { conversation
     while (conv.costs.length < asked - 1) conv.costs.push({ usd: 0, lookups: 0 });
     conv.costs.push(turnCost);
 
-    for (let round = 0; round < MAX_ROUNDS; round++) {
+    for (let round = 0; round < MAX_ROUNDS && !stopped; round++) {
       const stream = client.beta.messages.stream({
         model: MODEL,
         max_tokens: 32000,
@@ -174,8 +188,25 @@ export function chatStream(env: Env, ctx: ExecutionContext, body: { conversation
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
       });
-      stream.on("text", (delta) => void send("text", { t: delta }));
-      const msg = await stream.finalMessage();
+      current = stream;
+      let partial = "";
+      stream.on("text", (delta) => {
+        partial += delta;
+        void send("text", { t: delta });
+      });
+      let msg: Anthropic.Beta.BetaMessage;
+      try {
+        msg = await stream.finalMessage();
+      } catch (e) {
+        if (!stopped) throw e;
+        // Keep the history valid (user → assistant) and record what was said before stopping.
+        // The unfinished round's tokens aren't reported back, so they're not in the cost.
+        const text = partial.trim() ? `${partial}\n\n_(Stopped before finishing.)_` : "_(Stopped.)_";
+        conv.messages.push({ role: "assistant", content: [{ type: "text", text }] });
+        break;
+      } finally {
+        current = null;
+      }
       turnCost.usd += usageCost(msg.usage);
       // Append the assistant turn unchanged (thinking blocks must be passed back as-is).
       conv.messages.push({ role: "assistant", content: msg.content });
@@ -209,8 +240,10 @@ export function chatStream(env: Env, ctx: ExecutionContext, body: { conversation
         }),
       );
       conv.messages.push({ role: "user", content: results });
+      if (stopped) conv.messages.push({ role: "assistant", content: [{ type: "text", text: "_(Stopped.)_" }] });
       await saveConversation(env, conv);
     }
+    if (stopped) turnCost.stopped = true;
     await saveConversation(env, conv);
     await send("usage", turnCost);
     await send("done", { conversationId: conv.id });
@@ -221,6 +254,7 @@ export function chatStream(env: Env, ctx: ExecutionContext, body: { conversation
       await send("error", { message });
     })
     .finally(async () => {
+      clearInterval(heartbeat);
       if (open) await writer.close().catch(() => {});
     });
 

@@ -24,6 +24,7 @@ Turn your own copy of the Van's Aircraft RV construction plans into a private we
 - Ask in plain English; Claude searches your plans, reads pages and looks at the drawings (zooming into a quarter of the page for small callouts) before answering.
 - Answers cite pages and part numbers as links, and anything you should verify on the printed sheet appears as an amber **Check:** box.
 - Each answer lists the lookups Claude made and its cost (e.g. "3 lookups · ~10¢"); past questions keep their cost too.
+- **Stop** an answer at any time: the Send button becomes Stop while Claude works. Stopping cancels the Claude call (so the rest isn't billed) and keeps whatever was answered so far; you can carry on with a follow-up.
 - On desktop the cited page sits alongside the answer with the area Claude zoomed into outlined; on a phone it's a tappable card under the answer.
 
 **Desktop and phone**

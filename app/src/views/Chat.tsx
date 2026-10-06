@@ -6,7 +6,7 @@ import { href } from "../router";
 import { fmtCost, Icon, useWide } from "../ui";
 
 interface Tool { name: string; label: string; input: any }
-interface Turn { role: "user" | "assistant"; text: string; tools: Tool[]; cost?: { usd: number; lookups: number }; error?: string }
+interface Turn { role: "user" | "assistant"; text: string; tools: Tool[]; cost?: { usd: number; lookups: number; stopped?: boolean }; error?: string; stopped?: boolean }
 interface ConvSummary { id: string; title: string; updated: number; cost?: number }
 
 const TOOL_ICON: Record<string, () => ComponentChildren> = {
@@ -50,6 +50,7 @@ export function ChatView({ meta, id, page, initial }: { meta: Meta; id?: string;
   const [input, setInput] = useState(initial ?? "");
   const [busy, setBusy] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
+  const abort = useRef<AbortController | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
 
   const loadConvs = () => fetchJSON<ConvSummary[]>("/api/conversations").then(setConvs).catch(() => setConvs([]));
@@ -86,8 +87,11 @@ export function ChatView({ meta, id, page, initial }: { meta: Meta; id?: string;
     if (box.current) box.current.style.height = "";
     setBusy(true);
     setTurns((ts) => [...ts, { role: "user", text: message, tools: [] }, { role: "assistant", text: "", tools: [] }]);
+    const ctrl = new AbortController();
+    abort.current = ctrl;
     try {
       const res = await fetch("/api/chat", {
+        signal: ctrl.signal,
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ conversationId: convId, message, page }),
@@ -121,12 +125,18 @@ export function ChatView({ meta, id, page, initial }: { meta: Meta; id?: string;
         }
       }
     } catch (err) {
-      update((t) => (t.error = (err as Error).message));
+      if (ctrl.signal.aborted) update((t) => (t.stopped = true));
+      else update((t) => (t.error = (err as Error).message));
     } finally {
+      abort.current = null;
       setBusy(false);
       loadConvs();
     }
   }
+
+  // Closing the connection is the stop signal: the Worker cancels the Claude call and
+  // saves whatever was answered so far.
+  const stop = () => abort.current?.abort();
 
   const lastAnswer = [...turns].reverse().find((t) => t.role === "assistant" && (t.text || t.tools.length));
   const inConversation = !!convId || turns.length > 0;
@@ -158,9 +168,15 @@ export function ChatView({ meta, id, page, initial }: { meta: Meta; id?: string;
                 ))}
               </div>
             )}
-            {(t.text || t.error || (busy && i === turns.length - 1)) && (
+            {(t.text || t.error || t.stopped || (busy && i === turns.length - 1)) && (
               <article class="answer">
-                {t.text ? <div dangerouslySetInnerHTML={{ __html: markdownToHtml(t.text) }} /> : !t.error && <span class="muted typing">Working </span>}
+                {t.text ? (
+                  <div dangerouslySetInnerHTML={{ __html: markdownToHtml(t.text) }} />
+                ) : t.stopped ? (
+                  <span class="muted">Stopped.</span>
+                ) : (
+                  !t.error && <span class="muted typing">Working </span>
+                )}
                 {t.error && <div class="err">{t.error}</div>}
                 {!wide && t.text && <CiteCard meta={meta} turn={t} />}
                 {t.text && (t.cost || !busy || i < turns.length - 1) && (
@@ -168,6 +184,7 @@ export function ChatView({ meta, id, page, initial }: { meta: Meta; id?: string;
                     <span>
                       {t.cost ? `${t.cost.lookups} lookup${t.cost.lookups === 1 ? "" : "s"}` : `${t.tools.length} lookup${t.tools.length === 1 ? "" : "s"}`}
                       {t.cost && fmtCost(t.cost.usd) ? ` · ${fmtCost(t.cost.usd)}` : ""}
+                      {t.stopped || t.cost?.stopped ? " · stopped" : ""}
                     </span>
                     <span>AI can be wrong — check the plans</span>
                   </div>
@@ -219,7 +236,11 @@ export function ChatView({ meta, id, page, initial }: { meta: Meta; id?: string;
               if (e.key === "Enter" && !e.shiftKey && wide) send(e);
             }}
           />
-          <button type="submit" class="send" aria-label="Send" disabled={busy || !input.trim()}><Icon.send /></button>
+          {busy ? (
+            <button type="button" class="send stop" aria-label="Stop answering" title="Stop" onClick={stop}><Icon.stop /></button>
+          ) : (
+            <button type="submit" class="send" aria-label="Send" disabled={!input.trim()}><Icon.send /></button>
+          )}
         </div>
       </form>
     </div>

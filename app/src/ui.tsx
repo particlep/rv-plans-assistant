@@ -24,6 +24,7 @@ export const Icon = {
   eye: () => <S d={<><rect x="3" y="5" width="18" height="14" /><circle cx="12" cy="12" r="3" /></>} />,
   list: () => <S d={<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />} />,
   send: () => <S d={<path d="M5 12h14M13 6l6 6-6 6" />} />,
+  stop: () => <S fill="currentColor" d={<rect x="6" y="6" width="12" height="12" rx="1" />} />,
   sun: () => <S d={<><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>} />,
   moon: () => <S d={<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />} />,
   monitor: () => <S d={<><rect x="3" y="4" width="18" height="12" rx="1" /><path d="M8 20h8M12 16v4" /></>} />,

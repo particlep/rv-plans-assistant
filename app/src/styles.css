@@ -384,6 +384,7 @@ main.content.bare { padding: 0; max-width: none; }
 }
 .composer .send { width: 48px; height: 48px; border: 0; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .composer .send:disabled { opacity: 0.45; }
+.composer .send.stop { background: var(--ink); color: var(--paper); }
 .cited { display: none; }
 @media (min-width: 1280px) {
   .cited { display: flex; flex: 0 0 340px; flex-direction: column; gap: 12px; padding: 20px; background: var(--surface); border-left: 1px solid var(--line); }
